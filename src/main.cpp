@@ -1,20 +1,12 @@
 //Debugging & Features///////////////////////////////////////////////
 //#define BTTNTEST        //Switch to buttons test programm         |
 //#define PERFMEASUREMENT //Enables performance measurement & output|
-//#define ENABLE_BLE      //Enables Bluetooth                       |
-#define LAYOUT_OLD      //Enables old button layout               |
+//#define LAYOUT_NEW      //Enables old button layout               |
 
 //Libaries
 #include <Arduino.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
-
-//Bluetooth
-#ifdef ENABLE_BLE
-#include <BleGamepad.h>
-BleGamepad gamepad;
-//TODO battery level indication. Min working voltage 3.0V
-#endif
 
 //Screen
 TFT_eSPI tft = TFT_eSPI(); //Screen library object
@@ -36,7 +28,7 @@ TFT_eSPI tft = TFT_eSPI(); //Screen library object
 #define BDOWN 22   //9
 
 //Button layout & state variables
-#ifdef LAYOUT_OLD
+#ifndef LAYOUT_NEW
 const uint8_t _btnpin[10] = {BSTART, BSELECT, BDOWN, BRIGHT, BUP, BLEFT, BA, BB, BY, BX};
 #else
 const uint8_t _btnpin[10] = {BA, BB, BX, BY, BSTART, BSELECT, BLEFT, BRIGHT, BUP, BDOWN};
@@ -74,53 +66,6 @@ void updDPAD()
   if(btn[7])dpadX++;
   if(btn[8])dpadY++;
   if(btn[9])dpadY--;
-#ifdef ENABLE_BLE
-  switch(dpadY)
-  {
-    case 0:
-      switch(dpadX)
-      {
-        case 0:
-          gamepad.setHat(DPAD_CENTERED);
-          break;
-        case 1:
-          gamepad.setHat(DPAD_RIGHT);
-          break;
-        case -1:
-          gamepad.setHat(DPAD_LEFT);
-          break;
-      }
-      break;
-    case 1:
-      switch(dpadX)
-      {
-        case 0:
-          gamepad.setHat(DPAD_UP);
-          break;
-        case 1:
-          gamepad.setHat(DPAD_UP_RIGHT);
-          break;
-        case -1:
-          gamepad.setHat(DPAD_UP_LEFT);
-          break;
-      }
-      break;
-    case -1:
-      switch(dpadX)
-      {
-        case 0:
-          gamepad.setHat(DPAD_DOWN);
-          break;
-        case 1:
-          gamepad.setHat(DPAD_DOWN_RIGHT);
-          break;
-        case -1:
-          gamepad.setHat(DPAD_DOWN_LEFT);
-          break;
-      }
-      break;
-  }
-#endif
 }
 
 //Buttons state update procedure
@@ -132,10 +77,6 @@ void readbtn()
     if(btn[_btncounter] != prevbtn[_btncounter]){
       stateChanged = true;
       if(_btncounter>6)dpadStateChanged = 1;
-      /*
-      if(btn[_btncounter]>prevbtn[_btncounter])
-        gamepad.press(_btncounter+1);
-      else gamepad.release(_btncounter+1);*/
     }
   }
   if(dpadStateChanged) updDPAD();
@@ -144,7 +85,7 @@ void readbtn()
 
 //Button test GUI layout
 #ifdef BTTNTEST
-#ifdef LAYOUT_OLD
+#ifndef LAYOUT_NEW
 const uint8_t _btnTestBox[10][4] = {
     {121, 215, 50, 25}, //START
     {69, 215, 50, 25},  //SELECT
@@ -266,7 +207,6 @@ void tRenderSnake(void *p)
   }
   vTaskDelete(NULL);
 }
-
 
 //Direction change task (FREE RTOS)
 void tDirChange(void *p)
@@ -415,15 +355,6 @@ void setup()
   //Buttons initialization
   _initButtons();
 
-  //Bluetooth gamepad initialization
-  #ifdef ENABLE_BLE
-  gamepad.begin(128,0,0,0,0,0,0,0,0,0,0,0,0,0,0);//buttons only implementation
-  gamepad.setAutoReport(0);
-  tft.setCursor(40, 0);
-  tft.setTextSize(20);
-  vSemaphoreCreateBinary(tSem);
-  #endif
-
 #ifdef PERFMEASUREMENT
   time = micros() - time;
   Serial.println(time);
@@ -432,9 +363,9 @@ void setup()
 
 
   //Game initialization
-  #ifndef BTTNTEST
+#ifndef BTTNTEST
   initSnake();
-  #endif
+#endif
   return; //initialization end
 }
 
@@ -443,25 +374,6 @@ void setup()
 void loop()
 {
   readbtn();
-  #ifdef ENABLE_BLE
-  if(gamepad.isConnected()&&stateChanged)
-  {
-    if(prevbtn[0]!=btn[0])
-    {
-      if(btn[0]) gamepad.press(sendNum);
-      else gamepad.release(sendNum);
-    }
-    gamepad.sendReport();
-    stateChanged = false;
-    }
-  if(dpadStateChanged){
-    gamepad.release(sendNum);
-    if(dpadY == 1) sendNum++;
-    else if(dpadY == -1) sendNum--;
-    xSemaphoreGive(tSem);
-  }
-  #endif
-
   for (int32_t i = 0; i < 10; i++)
     tft.drawRect(_btnTestBox[i][0], _btnTestBox[i][1], _btnTestBox[i][2], _btnTestBox[i][3], btn[i] == 1 ? TFT_RED : TFT_DARKGREY);
   
