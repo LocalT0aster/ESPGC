@@ -1,23 +1,29 @@
-//Debugging/////////////////////////////////////////////////////
-//#define BTTNTEST          //Enables button test              |
-//#define TIMEMEASUREMENT   //Enables time measurement & output|
-//#define PRINTFUNC         //Outputs functions name           |
-//#define ENABLE_BLE        //Enables Bluetooth                |
-#define LAYOUT_OLD        //Enables old button layout        |
+//Debugging & Features///////////////////////////////////////////////
+//#define BTTNTEST        //Switch to buttons test programm         |
+//#define PERFMEASUREMENT //Enables performance measurement & output|
+//#define ENABLE_BLE      //Enables Bluetooth                       |
+#define LAYOUT_OLD      //Enables old button layout               |
+
 //Libaries
 #include <Arduino.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
-#ifdef ENABLE_BLE
 
+//Bluetooth
+#ifdef ENABLE_BLE
 #include <BleGamepad.h>
 BleGamepad gamepad;
-//TODO battery level indication, min voltage 3.0V
+//TODO battery level indication. Min working voltage 3.0V
 #endif
-//Screen//////////////////////////
-TFT_eSPI tft = TFT_eSPI(); ///////
+
+//Screen
+TFT_eSPI tft = TFT_eSPI(); //Screen library object
 #define BLK_PIN 32         //Backlight pin
-//Buttons/////////////(NEW LAYOUT)
+#define SCRSIZEX 240       //Screen size x
+#define SCRSIZEY 240       //Screen size y
+#define BKGCLR TFT_BLACK //Background color
+
+//Button pins (NEW LAYOUT NUM)
 #define BA 17      //0
 #define BB 15      //1
 #define BX 16      //2
@@ -28,47 +34,24 @@ TFT_eSPI tft = TFT_eSPI(); ///////
 #define BRIGHT 21  //7
 #define BUP 14     //8
 #define BDOWN 22   //9
+
+//Button layout & state variables
 #ifdef LAYOUT_OLD
 const uint8_t _btnpin[10] = {BSTART, BSELECT, BDOWN, BRIGHT, BUP, BLEFT, BA, BB, BY, BX};
 #else
-const uint8_t _btnpin[10] = {
-  BA,
-  BB,
-  BX,
-  BY,
-  BSTART,
-  BSELECT,
-  BLEFT,
-  BRIGHT,
-  BUP,
-  BDOWN
-  };
+const uint8_t _btnpin[10] = {BA, BB, BX, BY, BSTART, BSELECT, BLEFT, BRIGHT, BUP, BDOWN};
 #endif
-boolean btn[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; //Get buttons state here
-boolean prevbtn[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; //Get previous buttons state here
+boolean btn[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};     //Current buttons state
+boolean prevbtn[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; //Previous buttons state
 int8_t dpadY = 0;
 int8_t dpadX = 0;
 boolean stateChanged = 0;
-uint8_t _btncounter;
-int8_t sendNum = 1;
+uint8_t _btncounter; //counter for button array
 boolean dpadStateChanged = 0;
-SemaphoreHandle_t tSem;
-void tRenderSendNum(void *p)
-{
-  for (;;)
-  {
-    tft.fillRect(40,0,60,20,TFT_BLACK);
-    tft.setCursor(40,0);
-    tft.print(sendNum);
-    xSemaphoreTake(tSem, portMAX_DELAY);
-  }
-  vTaskDelete(NULL);
-}
+
+//Button pins initialization procedure
 void _initButtons()
 {
-#if PRINTFUNC
-  Serial.println("f _initButtons");
-#endif
   pinMode(BSTART, INPUT);
   pinMode(BSELECT, INPUT);
   pinMode(BDOWN, INPUT);
@@ -81,6 +64,8 @@ void _initButtons()
   pinMode(BX, INPUT);
   return;
 }
+
+//Dpad state update procedure
 void updDPAD()
 {
   dpadX = 0;
@@ -89,7 +74,7 @@ void updDPAD()
   if(btn[7])dpadX++;
   if(btn[8])dpadY++;
   if(btn[9])dpadY--;
-/*
+#ifdef ENABLE_BLE
   switch(dpadY)
   {
     case 0:
@@ -135,9 +120,11 @@ void updDPAD()
       }
       break;
   }
-*/
+#endif
 }
-void readbtn() // Update buttons state
+
+//Buttons state update procedure
+void readbtn()
 {
   for (_btncounter = 0; _btncounter < 10; _btncounter++){
     prevbtn[_btncounter] = btn[_btncounter];
@@ -154,6 +141,8 @@ void readbtn() // Update buttons state
   if(dpadStateChanged) updDPAD();
   return;
 }
+
+//Button test GUI layout
 #ifdef BTTNTEST
 #ifdef LAYOUT_OLD
 const uint8_t _btnTestBox[10][4] = {
@@ -182,7 +171,12 @@ const uint8_t _btnTestBox[10][4] = {
 };
 #endif
 #endif
-uint16_t HSVtoRGB565(float H, float S, float V) //Thing that I use for cool gradients
+
+//Random byte function
+uint8_t rnd() { return (esp_random() >> 24); } // returns 0 - 255
+
+//HSV to 16 bit RGB conversion function (thing that I use for cool gradients)
+uint16_t HSVtoRGB565(float H, float S, float V) 
 {
   float s = S / 100;
   float v = V / 100;
@@ -216,55 +210,65 @@ uint16_t HSVtoRGB565(float H, float S, float V) //Thing that I use for cool grad
   }
   return tft.color565((r + m) * 255, (g + m) * 255, (b + m) * 255);
 }
-uint8_t rnd() { return (esp_random() >> 24); } // returns 0 - 255
-#ifndef BTTNTEST
-//Global Game Variables (put your variables here)///////////////
-//uint8_t level = 0; //TODO not implemented, for menus
-#define SNAKECLR1 0x3353
-#define SNAKECLR2 0xfea7
-const uint8_t fieldSize = 30; //edge of square
-uint8_t snake[fieldSize * fieldSize][2];
-uint16_t snakeLenght = 2;
-uint8_t direction = 2; //0 - down, 1 - right, 2 - up, 3 - left
-uint16_t period = 500; //in ms
-uint8_t berry[2] = {0, 0};
-uint32_t placeAttempts = 0;
-uint8_t collider[2] = {0, 0};
-bool collision = 0;
-bool isBerryPlaced = 0;
-bool addLenght = 0; //for render purposes
-bool isRunning = 1;
-TaskHandle_t rHandle;
-TaskHandle_t dHandle;
-SemaphoreHandle_t rSem;
-#endif
-//Game Functions
-void blink()
+
+//Blink procedure for beautiful transitions
+void blink(uint16_t toColor)
 {
-#if PRINTFUNC
-  Serial.println("f blink");
-#endif
   tft.fillScreen(TFT_WHITE);
   delay(10);
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(toColor);
   delay(10);
 }
+
 #ifndef BTTNTEST
+//Global Game Variables
+//uint8_t level = 0; //TODO not implemented, for menus and multiple games
+
+//Snake Game
+//Color Pallete
+#define SNAKECLR1 0x3353 //Snake color 1
+#define SNAKECLR2 0xfea7 //Snake color 2
+#define BERRYCLR TFT_RED //Berry color
+
+const uint8_t fieldSize = 30; //square edge size
+uint8_t snake[fieldSize * fieldSize][2]; //snake body coordinates array
+uint16_t snakeLenght = 2; //current snake length
+uint8_t direction = 2; //0 - down, 1 - right, 2 - up, 3 - left
+uint8_t prevDirection = 2; //previous direction state
+uint16_t period = 500; //game tick in ms
+uint8_t berry[2] = {0, 0}; //berry coordinates {x, y}
+uint8_t collider[2] = {0, 0}; //collider coordinates {x, y} (used for collision detection)
+bool collision = 0; //(1 if collided)
+bool isBerryPlaced = 0;
+bool addLength = 0; //increments the length of the snake
+bool isRunning = 1;
+//FREE RTOS Handles & Semaphores
+TaskHandle_t renderTaskHandle;
+TaskHandle_t directionsTaskHandle;
+SemaphoreHandle_t renderSem;
+
+//Game Functions
+//Erase tail procedure. Fills the last snake tile on the screen with background color.
+void eraseTail() { tft.fillRect(snake[snakeLenght - 1][0] * 8, snake[snakeLenght - 1][1] * 8, 8, 8, BKGCLR); };
+
+//Render task (FREE RTOS)
 void tRenderSnake(void *p)
 {
   for (;;)
   {
-    //tft.fillScreen(TFT_BLACK);
+    eraseTail();
     for (uint16_t i = 0; i < snakeLenght; i++)
     {
       tft.fillRect(snake[i][0] * 8, snake[i][1] * 8, 8, 8, i % 2 == 0 ? SNAKECLR1 : SNAKECLR2);
     }
-    tft.fillRoundRect(berry[0] * floor(240 / fieldSize), berry[1] * floor(240 / fieldSize), floor(240 / fieldSize), floor(240 / fieldSize), 1, TFT_RED);
-    xSemaphoreTake(rSem, portMAX_DELAY);
+    tft.fillRoundRect(berry[0] * floor(SCRSIZEX / fieldSize), berry[1] * floor(SCRSIZEY / fieldSize), floor(SCRSIZEX / fieldSize), floor(SCRSIZEY / fieldSize), 1, BERRYCLR);
+    xSemaphoreTake(renderSem, portMAX_DELAY);
   }
   vTaskDelete(NULL);
 }
-void eraseTail() { tft.fillRect(snake[snakeLenght - 1][0] * 8, snake[snakeLenght - 1][1] * 8, 8, 8, TFT_BLACK); };
+
+
+//Direction change task (FREE RTOS)
 void tDirChange(void *p)
 {
   for (;;)
@@ -280,15 +284,15 @@ void tDirChange(void *p)
   }
   vTaskDelete(NULL);
 }
+
+//Berry Placement procedure
 void placeBerry()
 {
-  placeAttempts = 0;
   do
   {
     berry[0] = floor(rnd() % fieldSize);
     berry[1] = floor(rnd() % fieldSize);
-    placeAttempts++;
-    isBerryPlaced = 1;
+    isBerryPlaced = 1; 
     for (uint16_t i = 0; i < snakeLenght; i++)
       if (snake[i][0] == berry[0] && snake[i][1] == berry[1])
       {
@@ -296,9 +300,9 @@ void placeBerry()
         break;
       }
   } while (!isBerryPlaced);
-  Serial.print("placeAttempts ");
-  Serial.println(placeAttempts);
 }
+
+//Game initialization procedure
 void initSnake()
 {
   snakeLenght = 2;
@@ -309,15 +313,18 @@ void initSnake()
   direction = 2;
   collision = 0;
   placeBerry();
-  blink();
-  xTaskCreatePinnedToCore(tRenderSnake, "render", 4000, NULL, 0, &rHandle, 1);
-  vSemaphoreCreateBinary(rSem);
-  xTaskCreate(tDirChange, "dir", 1000, NULL, 0, &dHandle);
+  blink(BKGCLR);
+  xTaskCreatePinnedToCore(tRenderSnake, "render", 4000, NULL, 0, &renderTaskHandle, 1);
+  vSemaphoreCreateBinary(renderSem);
+  xTaskCreate(tDirChange, "dir", 1000, NULL, 0, &directionsTaskHandle);
   delay(1000);
   isRunning = 1;
 }
+
+//Snake movement procedure
 void moveSnake()
 {
+  //Border collision detection
   collider[0] = snake[0][0];
   collider[1] = snake[0][1];
   switch (direction)
@@ -347,64 +354,52 @@ void moveSnake()
   }
   if (collision)
   {
-    Serial.println("border collision!");
     isRunning = 0;
     return;
   }
+  //Body collision detection
   for (uint16_t i = 3; i < snakeLenght; i++)
+  {
     if (collider[0] == snake[i][0] && collider[1] == snake[i][1])
     {
       collision = 1;
-      Serial.println("body collision!");
       isRunning = 0;
       return;
     }
+  }
+  //Berry collision detection 
   if (collider[0] == berry[0] && collider[1] == berry[1])
   {
-    addLenght = 1;
+    addLength = 1;
     isBerryPlaced = 0;
   }
-  for (uint16_t i = snakeLenght - 1; i > 0; i--)
+  //Movement
+  for (uint16_t i = snakeLenght - 1 + addLength; i > 0; i--)
   {
     snake[i][0] = snake[i - 1][0];
     snake[i][1] = snake[i - 1][1];
   }
   snake[0][0] = collider[0];
   snake[0][1] = collider[1];
-  if (addLenght)
+  if (addLength)
   {
-    snake[snakeLenght][0] = snake[snakeLenght - 1][0];
-    snake[snakeLenght][1] = snake[snakeLenght - 1][1];
     snakeLenght++;
-    addLenght = 0;
+    addLength = 0;
   }
 }
-/*void printSnakeArray()
-{
-  Serial.println("Snake:");
-  for (uint16_t i = 0; i < fieldSize * fieldSize; i++)
-  {
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.print(snake[i][0]);
-    Serial.print(' ');
-    Serial.println(snake[i][1]);
-  }
-}*/
 #endif
-void setup() ////////////////////////////////////////////////////////////////
+
+//Default Arduino setup procedure. Executes on startup
+void setup()
 {
   //Debug
   Serial.begin(115200);
-#if PRINTFUNC
-  Serial.println("f setup");
-#endif
-#ifdef TIMEMEASUREMENT
+#ifdef PERFMEASUREMENT
   //Time measure
   uint32_t time = 0;
   time += micros();
 #endif
-  _initButtons();
+
   //Screen initialization
   pinMode(BLK_PIN, OUTPUT);
   digitalWrite(BLK_PIN, 0);
@@ -415,7 +410,11 @@ void setup() ////////////////////////////////////////////////////////////////
   tft.setTextSize(80);
   tft.fillScreen(TFT_BLACK);
   digitalWrite(BLK_PIN, 1);
-  blink();
+  blink(TFT_BLACK);
+
+  //Buttons initialization
+  _initButtons();
+
   //Bluetooth gamepad initialization
   #ifdef ENABLE_BLE
   gamepad.begin(128,0,0,0,0,0,0,0,0,0,0,0,0,0,0);//buttons only implementation
@@ -424,27 +423,27 @@ void setup() ////////////////////////////////////////////////////////////////
   tft.setTextSize(20);
   vSemaphoreCreateBinary(tSem);
   #endif
-  //delay(1980);
-#ifdef TIMEMEASUREMENT
+
+#ifdef PERFMEASUREMENT
   time = micros() - time;
   Serial.println(time);
   Serial.println(micros());
 #endif
-  //////////////////////
+
+
   //Game initialization
-  ///(init things here)/
   #ifndef BTTNTEST
   initSnake();
   #endif
   return; //initialization end
-} ////////////////////////////////////////////////////////////////
+}
 
 #ifdef BTTNTEST
 //buttons test
 void loop()
 {
   readbtn();
-
+  #ifdef ENABLE_BLE
   if(gamepad.isConnected()&&stateChanged)
   {
     if(prevbtn[0]!=btn[0])
@@ -461,6 +460,7 @@ void loop()
     else if(dpadY == -1) sendNum--;
     xSemaphoreGive(tSem);
   }
+  #endif
 
   for (int32_t i = 0; i < 10; i++)
     tft.drawRect(_btnTestBox[i][0], _btnTestBox[i][1], _btnTestBox[i][2], _btnTestBox[i][3], btn[i] == 1 ? TFT_RED : TFT_DARKGREY);
@@ -468,40 +468,28 @@ void loop()
   delay(4);//250hz
 }
 #else
-///////////////////
-//Game loop ///////
-///(put game here)/
 
+//Game loop
 void loop()
 {
-
-#if PRINTFUNC
-  Serial.println("f loop");
-#endif
   if (isRunning)
   {
-    eraseTail();
     moveSnake();
     if (!isBerryPlaced)
       placeBerry();
-    xSemaphoreGive(rSem);
+    xSemaphoreGive(renderSem);
     delay(period);
   }
   else
   {
-    vTaskDelete(rHandle);
-    vTaskDelete(dHandle);
-    vSemaphoreDelete(rSem);
+    vTaskDelete(renderTaskHandle);
+    vTaskDelete(directionsTaskHandle);
+    vSemaphoreDelete(renderSem);
     delay(2000);
-    blink();
+    blink(TFT_BLACK);
     tft.setCursor(40, 80);
     tft.setTextSize(7);
     tft.print(snakeLenght);
-    //printSnakeArray();
-    /*Serial.print("Berry: ");
-    Serial.print(berry[0]);
-    Serial.print(' ');
-    Serial.println(berry[1]);*/
     delay(3000);
     tft.setTextSize(1);
     tft.setCursor(0, 231);
