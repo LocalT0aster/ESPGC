@@ -1,2 +1,2 @@
-# ESPGC
-My portable console code.
+# ESPGC Bluetooth Gamepad Feature
+TODO: Make programm menu & merge.
