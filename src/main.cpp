@@ -15,27 +15,29 @@ TFT_eSPI tft = TFT_eSPI(); // Screen library object
 #define SCRSIZEY 240       // Screen size y
 #define BKGCLR 0x0020      // Background color
 
-// Button pins (NEW LAYOUT NUM)
-#define BA 17                                                                             // 0
-#define BB 15                                                                             // 1
-#define BX 16                                                                             // 2
-#define BY 2                                                                              // 3
-#define BSTART 5                                                                          // 4
-#define BSELECT 19                                                                        // 5
-#define BLEFT 27                                                                          // 6
-#define BRIGHT 21                                                                         // 7
-#define BUP 14                                                                            // 8
-#define BDOWN 22                                                                          // 9
-const uint8_t _btnpin[10] = {BA, BB, BX, BY, BSTART, BSELECT, BLEFT, BRIGHT, BUP, BDOWN}; // Buttons layout\
+// Button pins (LAYOUT NUM)
+#define BA 17      // 0
+#define BB 15      // 1
+#define BX 16      // 2
+#define BY 2       // 3
+#define BSTART 5   // 4
+#define BSELECT 19 // 5
+#define BLEFT 27   // 6
+#define BRIGHT 21  // 7
+#define BUP 14     // 8
+#define BDOWN 22   // 9
+
+// Buttons layout
+const uint8_t _btnpin[10] = {BA, BB, BX, BY, BSTART, BSELECT, BLEFT, BRIGHT, BUP, BDOWN};
 
 // Button state variables
-boolean btn[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};     // Current buttons state
-boolean prevbtn[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // Previous buttons state
+bool btn[10];     // Current buttons state
+bool prevbtn[10]; // Previous buttons state
 int8_t dpadY = 0;
 int8_t dpadX = 0;
-boolean stateChanged = 0;
+bool stateChanged = 0;
 uint8_t btncnt; // Counter for button arrays
-boolean dpadStateChanged = 0;
+bool dpadStateChanged = 0;
 
 // Button pins initialization procedure
 void _initButtons()
@@ -107,23 +109,23 @@ uint16_t HSVtoRGB565(float H, float S, float V)
   float X = C * (1 - abs(fmod(H / 60.0, 2) - 1));
   float m = v - C;
   float r, g, b;
-  if (H >= 0 && H < 60)
+  if (H < 60)
   {
     r = C, g = X, b = 0;
   }
-  else if (H >= 60 && H < 120)
+  else if (H < 120)
   {
     r = X, g = C, b = 0;
   }
-  else if (H >= 120 && H < 180)
+  else if (H < 180)
   {
     r = 0, g = C, b = X;
   }
-  else if (H >= 180 && H < 240)
+  else if (H < 240)
   {
     r = 0, g = X, b = C;
   }
-  else if (H >= 240 && H < 300)
+  else if (H < 300)
   {
     r = X, g = 0, b = C;
   }
@@ -134,7 +136,7 @@ uint16_t HSVtoRGB565(float H, float S, float V)
   return tft.color565((r + m) * 255, (g + m) * 255, (b + m) * 255);
 }
 
-// Blink procedure for beautiful transitions
+// Blink procedure (for beautiful transitions)
 void blink(uint16_t toColor)
 {
   tft.fillScreen(TFT_WHITE);
@@ -154,19 +156,21 @@ void blink(uint16_t toColor)
 #define SNAKECLR2 0xfea7 // Snake color 2
 #define BERRYCLR 0xf800  // Berry color
 
-const uint8_t fieldSize = 30;           // square edge size
+const uint8_t fieldSize = 30; // square edge size
+const uint8_t tileSize = SCRSIZEX / fieldSize;
 const uint16_t maxSnakeLength = fieldSize * fieldSize; // maximum length of snake
-uint16_t snakeLenght = 2;               // current snake length
-int8_t snake[fieldSize * fieldSize][2]; // snake body coordinates array
-int8_t direction = 2;                   // 0 - up, 1 - left, 2 - down, 3 - right
-int8_t prevDirection = 2;               // previous direction state
-uint16_t period = 500;                  // game tick in ms
-int8_t berry[2] = {0, 0};               // berry coordinates {x, y}
-int8_t collider[2] = {0, 0};            // collider coordinates {x, y} (used for collision detection)
-bool collision = 0;                     //(1 if collided)
+uint16_t snakeLenght = 2;                              // current snake length
+int8_t snake[fieldSize * fieldSize][2];                // snake body coordinates array
+int8_t direction;                                      // 0 - up, 1 - left, 2 - down, 3 - right
+int8_t prevDirection;                                  // previous direction state
+uint16_t period = 500;                                 // game tick in ms
+int8_t berry[2] = {0, 0};                              // berry coordinates {x, y}
+int8_t collider[2] = {0, 0};                           // collider coordinates {x, y} (used for collision detection)
+bool collision = 0;                                    //(1 if collided)
 bool isBerryPlaced = 0;
 bool addLength = 0; // increments the length of the snake
 bool isRunning = 1;
+
 // FREE RTOS Handles & Semaphores
 TaskHandle_t renderTaskHandle;
 TaskHandle_t directionsTaskHandle;
@@ -174,18 +178,18 @@ SemaphoreHandle_t renderSem;
 
 // Game Functions
 // Erase tail procedure. Fills the last snake tile on the screen with background color.
-void eraseTail() { tft.fillRect(snake[snakeLenght - 1][0] * 8, snake[snakeLenght - 1][1] * 8, 8, 8, BKGCLR); }
+void eraseTail() { tft.fillRect(snake[snakeLenght - 1][0] * tileSize, snake[snakeLenght - 1][1] * tileSize, tileSize, tileSize, BKGCLR); }
 
 // Render task (FREE RTOS)
 void tRenderSnake(void *p)
 {
   for (;;)
   {
-    for (uint16_t i = 0; i < snakeLenght; i++)
+    for (uint16_t i = 0; i < snakeLenght; ++i)
     {
-      tft.fillRect(snake[i][0] * 8, snake[i][1] * 8, 8, 8, i % 2 == 0 ? SNAKECLR1 : SNAKECLR2);
+      tft.fillRect(snake[i][0] * tileSize, snake[i][1] * tileSize, tileSize, tileSize, i % 2 == 0 ? SNAKECLR1 : SNAKECLR2);
     }
-    tft.fillRoundRect(berry[0] * SCRSIZEX / fieldSize, berry[1] * SCRSIZEY / fieldSize, SCRSIZEX / fieldSize, SCRSIZEY / fieldSize, 1, BERRYCLR);
+    tft.fillRoundRect(berry[0] * tileSize, berry[1] * tileSize, tileSize, tileSize, 1, BERRYCLR);
     xSemaphoreTake(renderSem, portMAX_DELAY);
   }
   vTaskDelete(NULL);
@@ -244,14 +248,15 @@ void placeBerry()
 }
 
 // Game initialization procedure
-void initSnake()
+void initSnakeGame()
 {
   snakeLenght = 2;
   snake[0][0] = fieldSize >> 1;
   snake[0][1] = fieldSize >> 1;
   snake[1][0] = fieldSize >> 1;
   snake[1][1] = (fieldSize >> 1) + 1;
-  direction = 1;
+  direction = 0;
+  prevDirection = direction;
   collision = 0;
   placeBerry();
   blink(BKGCLR);
@@ -297,6 +302,7 @@ void moveSnake()
     isRunning = 0;
     return;
   }
+
   // Body collision detection
   for (uint16_t i = snakeLenght - 2; i > 2; i--)
   {
@@ -307,14 +313,16 @@ void moveSnake()
       return;
     }
   }
+
   // Berry collision detection
   if (collider[0] == berry[0] && collider[1] == berry[1])
   {
     addLength = 1;
     isBerryPlaced = 0;
   }
-  prevDirection = direction;
+
   // Movement
+  prevDirection = direction;
   for (uint16_t i = snakeLenght - 1 + addLength; i > 0; i--)
   {
     snake[i][0] = snake[i - 1][0];
@@ -326,7 +334,8 @@ void moveSnake()
   {
     snakeLenght++;
     addLength = 0;
-    if (snakeLenght >= maxSnakeLength) isRunning = 0;
+    if (snakeLenght >= maxSnakeLength)
+      isRunning = 0;
   }
 }
 #endif
@@ -353,7 +362,7 @@ void setup()
   tft.fillScreen(TFT_BLACK);
   digitalWrite(BLK_PIN, 1);
   blink(TFT_BLACK);
-
+  
   // Buttons initialization
   _initButtons();
 
@@ -365,7 +374,7 @@ void setup()
 
   // Game initialization
 #ifndef BTTNTEST
-  initSnake();
+  initSnakeGame();
 #endif
   return; // initialization end
 }
@@ -414,7 +423,7 @@ void loop()
       if (btn[4])
         break;
     }
-    initSnake();
+    initSnakeGame();
   }
 }
 #endif
