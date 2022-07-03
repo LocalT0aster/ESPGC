@@ -19,3 +19,7 @@ In development...
 
 [Schematics:](https://www.tinkercad.com/things/5aT8ZZnGlQI-espgcbeta1)
 ![Schematic, made with Tinkercad](res/schematics/ESPGC_beta1.png)
+
+# Photos
+![front](res/misc/IMG_20220703_140945.jpg)
+![back](res/misc/IMG_20220703_141401.jpg)
