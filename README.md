@@ -2,15 +2,8 @@
 ## ESP32 Small Portable Game Console
 ### Also, this my first repo! <sup><sub><sub>*(may look awful)*</sub></sub></sup>
 
-I made this project to learn how to build handheld devices and how to programm them.
-
-# Table of Contents
-* [Description]()
-* [Building]()
-* [Videos]()
-
 # Description
-In development...
+This project is based on Arduino framework, [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) and [ESP-BLE-Gamepad](https://github.com/lemmingDev/ESP32-BLE-Gamepad) libaries. I made this project to learn how to build handheld devices and how to programm them. It is very sketchy atm.
 
 # Building
 In development...
@@ -26,6 +19,3 @@ In development...
 
 [Schematics:](https://www.tinkercad.com/things/5aT8ZZnGlQI-espgcbeta1)
 ![Schematic, made with Tinkercad](res/schematics/ESPGC_beta1.png)
-
-# Videos
-In development...
